@@ -1,46 +1,44 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, Text, View, TextInput } from 'react-native';
+import { View, Platform, KeyboardAvoidingView } from 'react-native';
 import io from "socket.io-client";
+import { GiftedChat } from 'react-native-gifted-chat';
+import JoinScreen from './joinScreen';
 
 export default function HomeScreen() {
-    const [messageToSend, setMessageToSend] = useState("");
     const [receiveMessages, setReceiveMessages] = useState([]);
+    const [hasJoined, setHasJoined] = useState(false);
     const socket = useRef(null);
 
     useEffect(function () {
-        socket.current = io("http://192.168.1.5:3000")
+        socket.current = io("http://192.168.1.3:3000")
         socket.current.on("message", message => {
-            setReceiveMessages(prevState => [...prevState, message]);
+            setReceiveMessages(prevState => GiftedChat.append(prevState, message));
         })
     }, [])
 
-    const sendMessage = () => {
-        socket.current.emit("message", messageToSend);
-        setMessageToSend("")
+    const onSend = messages => {
+        socket.current.emit("message", messages[0].text);
+        setReceiveMessages(prevState => GiftedChat.append(prevState, messages))
     }
 
-    const receievedMessageStream = receiveMessages.map(msg => (
-        <Text key={msg}>{msg}</Text>
-    ));
+    const joinChat = username => {
+        socket.current.emit("join", username);
+        setHasJoined(true);
+    }
 
     return (
-        <View style={styles.container}>
-            {receievedMessageStream}
-            <TextInput 
-                value={messageToSend}
-                onChangeText={text => setMessageToSend(text)} 
-                placeholder="say something..." 
-                onSubmitEditing={sendMessage}
+        <View style={{flex: 1}}>
+            {hasJoined ? 
+            (<GiftedChat
+                renderUsernameOnMessage
+                messages={receiveMessages}
+                onSend={messages => onSend(messages)}
+                user={{_id: 1}}
             />
+            ) : (
+                <JoinScreen joinChat={joinChat}/>
+            )}
+            {Platform.OS === 'android' && <KeyboardAvoidingView behavior="padding" />}
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#fff',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-});
